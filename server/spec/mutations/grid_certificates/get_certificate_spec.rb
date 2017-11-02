@@ -55,12 +55,17 @@ describe GridCertificates::GetCertificate do
   end
 
   describe '#execute' do
-    it 'get fullchain cert by default' do
+    let(:acme) { double() }
+    let(:challenge) { double() }
+
+    before do
+      allow_any_instance_of(described_class).to receive(:check_dns_record).with('example.com', String).and_return(true)
       authz
-      acme = double
       allow(subject).to receive(:acme_client).and_return(acme)
-      challenge = double
-      expect(acme).to receive(:challenge_from_hash).and_return(challenge)
+      allow(acme).to receive(:challenge_from_hash).and_return(challenge)
+    end
+
+    it 'get fullchain cert by default' do
       expect(acme).to receive(:new_certificate).and_return(
         double({
           request: double(
@@ -74,81 +79,64 @@ describe GridCertificates::GetCertificate do
       expect(challenge).to receive(:verify_status).and_return('valid', 'valid')
       expect(subject).to receive(:upsert_secret).exactly(3).times.and_return(double({success?: true}))
 
-      subject.execute
+      expect(subject.run).to be_success
     end
 
-    it 'get only cert' do
-      subject = described_class.new(grid: grid, secret_name: 'secret', domains: ['example.com'], cert_type: 'cert')
-      authz
-      acme = double
-      allow(subject).to receive(:acme_client).and_return(acme)
-      challenge = double
-      expect(acme).to receive(:challenge_from_hash).and_return(challenge)
-      expect(acme).to receive(:new_certificate).and_return(
-        double({
-          to_pem: 'pem_cert',
-          request: double(
-            {
-              private_key: double({to_pem: 'private_key'})
-            }
-          )
-        }))
-      expect(challenge).to receive(:request_verification).and_return(true)
-      expect(challenge).to receive(:verify_status).and_return('valid', 'valid')
-      expect(subject).to receive(:upsert_secret).exactly(3).times.and_return(double({success?: true}))
+    describe 'cert_type=cert' do
+      subject { described_class.new(grid: grid, secret_name: 'secret', domains: ['example.com'], cert_type: 'cert') }
 
-      subject.execute
+      it 'get only cert' do
+        expect(acme).to receive(:new_certificate).and_return(
+          double({
+            to_pem: 'pem_cert',
+            request: double(
+              {
+                private_key: double({to_pem: 'private_key'})
+              }
+            )
+            }))
+        expect(challenge).to receive(:request_verification).and_return(true)
+        expect(challenge).to receive(:verify_status).and_return('valid', 'valid')
+        expect(subject).to receive(:upsert_secret).exactly(3).times.and_return(double({success?: true}))
+
+        expect(subject.run).to be_success
+      end
     end
 
-    it 'get chain cert' do
-      subject = described_class.new(grid: grid, secret_name: 'secret', domains: ['example.com'], cert_type: 'chain')
-      authz
-      acme = double
-      allow(subject).to receive(:acme_client).and_return(acme)
-      challenge = double
-      expect(acme).to receive(:challenge_from_hash).and_return(challenge)
-      expect(acme).to receive(:new_certificate).and_return(
-        double({
-          request: double(
-            {
-              private_key: double({to_pem: 'private_key'})
-            }
-          ),
-          chain_to_pem: 'chain'
-        }))
-      expect(challenge).to receive(:request_verification).and_return(true)
-      expect(challenge).to receive(:verify_status).and_return('valid', 'valid')
-      expect(subject).to receive(:upsert_secret).exactly(3).times.and_return(double({success?: true}))
+    describe 'cert_type=chain' do
+      subject { described_class.new(grid: grid, secret_name: 'secret', domains: ['example.com'], cert_type: 'chain') }
 
-      subject.execute
+      it 'get chain cert' do
+        expect(acme).to receive(:new_certificate).and_return(
+          double({
+            request: double(
+              {
+                private_key: double({to_pem: 'private_key'})
+              }
+            ),
+            chain_to_pem: 'chain'
+          }))
+        expect(challenge).to receive(:request_verification).and_return(true)
+        expect(challenge).to receive(:verify_status).and_return('valid', 'valid')
+        expect(subject).to receive(:upsert_secret).exactly(3).times.and_return(double({success?: true}))
+
+        expect(subject.run).to be_success
+      end
     end
+
 
     it 'adds error if verification timeouts' do
-      authz
-      acme = double
-      allow(subject).to receive(:acme_client).and_return(acme)
-      challenge = double
-      expect(acme).to receive(:challenge_from_hash).and_return(challenge)
       expect(challenge).to receive(:request_verification).and_return(true)
       expect(challenge).to receive(:verify_status).and_raise(Timeout::Error)
-      expect(subject).to receive(:add_error)
 
-      subject.execute
+      expect(subject.run).to_not be_success
     end
 
     it 'adds error if acme client errors' do
-      authz
-      acme = double
-      allow(subject).to receive(:acme_client).and_return(acme)
-      challenge = double
-      expect(acme).to receive(:challenge_from_hash).and_return(challenge)
       expect(challenge).to receive(:request_verification).and_raise(Acme::Client::Error)
-      expect(subject).to receive(:add_error)
 
-      subject.execute
+      expect(subject.run).to_not be_success
     end
-
-
   end
 
 

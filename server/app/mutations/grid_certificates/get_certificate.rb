@@ -35,35 +35,7 @@ module GridCertificates
       csr = Acme::Client::CertificateRequest.new(names: self.domains)
       client = acme_client(self.grid)
 
-      self.domains.each do |domain|
-        domain_authz = get_authz_for_domain(self.grid, domain)
-
-        challenge = client.challenge_from_hash(domain_authz.challenge)
-        if domain_authz.state == :created
-          info 'requesting verification'
-          success = challenge.request_verification
-          if success
-            domain_authz.state = :requested
-            domain_authz.save
-          end
-        end
-
-
-        wait_until!("domain verification for #{domain} is valid", interval: 1, timeout: 30, threshold: 10) {
-          challenge.verify_status != 'pending'
-        }
-
-        case challenge.verify_status
-        when 'valid'
-          domain_authz.state = :validated
-        when 'invalid'
-          domain_authz.state = :invalid
-          add_error(:challenge, :invalid, challenge.error['detail'])
-        end
-
-        domain_authz.save
-
-      end
+      return unless verify_domains(self.grid, client, self.domains)
 
       certificate = client.new_certificate(csr)
       cert_priv_key = certificate.request.private_key.to_pem

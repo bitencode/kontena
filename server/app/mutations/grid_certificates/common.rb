@@ -5,8 +5,8 @@ require_relative '../../services/logging'
 
 module GridCertificates
   module Common
-
     include Logging
+    include WaitHelper
 
     LE_PRIVATE_KEY = 'LE_PRIVATE_KEY'.freeze
 
@@ -72,6 +72,7 @@ module GridCertificates
 
     # @param domain_authorization [GridDomainAuthorization]
     def validate_domain_authorization(authz)
+
       case authz.authorization_type
       when 'dns-01'
         # Check that the expected DNS record is already in place
@@ -91,6 +92,59 @@ module GridCertificates
 
         validate_domain_authorization(domain_authorization)
       end
+    end
+
+    # @param grid [Grid]
+    # @param le_client [Acme::Client] for grid
+    # @param domain [String]
+    # @raise [Timeout::Error]
+    def verify_domain(grid, le_client, domain)
+      domain_authorization = get_authz_for_domain(grid, domain)
+      challenge = le_client.challenge_from_hash(domain_authorization.challenge)
+      if domain_authorization.state == :created
+        info "requesting verification for domain #{domain}"
+        success = challenge.request_verification
+        if success
+          domain_authorization.state = :requested
+          domain_authorization.save
+        else
+          add_error(:request_verification, :failed, "Requesting verification failed")
+        end
+      end
+
+      wait_until!("domain verification for #{domain} is valid", interval: 1, timeout: 30, threshold: 10) {
+        challenge.verify_status != 'pending'
+      }
+
+      case challenge.verify_status
+      when 'valid'
+        domain_authorization.state = :validated
+      when 'invalid'
+        domain_authorization.state = :invalid
+        add_error(:challenge, :invalid, challenge.error['detail'])
+      end
+
+      domain_authorization.save
+    rescue Timeout::Error
+      warn 'timeout while waiting for DNS verfication status'
+      add_error(:challenge_verify, :timeout, 'Challenge verification timeout')
+    rescue Acme::Client::Error => exc
+      error exc
+      add_error(:acme_client, :error, exc.message)
+    end
+
+    # @param grid [Grid]
+    # @param le_client [Acme::Client] for grid
+    # @param domains [Array<String>]
+    # @raise [Timeout::Error]
+    # @return [Boolean] success/error
+    def verify_domains(grid, le_client, domains)
+      domains.each do |domain|
+        verify_domain(grid, le_client, domain)
+      end
+
+      # some domain verifications has failed, errors already added
+      return !has_errors?
     end
   end
 end

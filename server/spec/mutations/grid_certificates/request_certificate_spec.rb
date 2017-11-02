@@ -66,7 +66,7 @@ describe GridCertificates::RequestCertificate do
       expect(challenge).to receive(:request_verification).and_return(true)
       expect(challenge).to receive(:verify_status).and_return('valid', 'valid')
 
-      subject.verify_domain('example.com')
+      subject.verify_domain(grid, acme_client, 'example.com')
     end
 
     it 'adds error if verification timeouts' do
@@ -74,14 +74,14 @@ describe GridCertificates::RequestCertificate do
       expect(challenge).to receive(:verify_status).and_raise(Timeout::Error)
       expect(subject).to receive(:add_error)
 
-      subject.verify_domain('example.com')
+      subject.verify_domain(grid, acme_client, 'example.com')
     end
 
     it 'adds error if acme client errors' do
       expect(challenge).to receive(:request_verification).and_raise(Acme::Client::Error)
       expect(subject).to receive(:add_error)
 
-      subject.verify_domain('example.com')
+      subject.verify_domain(grid, acme_client, 'example.com')
     end
 
 
