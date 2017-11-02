@@ -118,6 +118,7 @@ module GridCertificates
 
       case challenge.verify_status
       when 'valid'
+        domain_authorization.expires = nil # XXX: old version of acme-client does not update authorization expiration
         domain_authorization.state = :validated
       when 'invalid'
         domain_authorization.state = :invalid
