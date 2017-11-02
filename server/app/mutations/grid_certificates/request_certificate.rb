@@ -17,21 +17,7 @@ module GridCertificates
     end
 
     def validate
-      self.domains.each do |domain|
-        domain_authz = get_authz_for_domain(self.grid, domain)
-
-        if domain_authz
-          if domain_authz.authorization_type == 'dns-01'
-            # Check that the expected DNS record is already in place
-            unless validate_dns_record(domain, domain_authz.challenge_opts['record_content'])
-              add_error(:dns_record, :invalid, "Expected DNS record not present for domain #{domain}")
-            end
-          end
-        else
-          add_error(:authorization, :not_found, "Domain authorization not found for domain #{domain}")
-        end
-
-      end
+      validate_authorizations_for_domains(self.domains)
     end
 
     def verify_domain(domain)
@@ -132,4 +118,3 @@ module GridCertificates
   end
 
 end
-

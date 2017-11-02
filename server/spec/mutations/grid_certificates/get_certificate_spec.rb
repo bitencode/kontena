@@ -35,14 +35,14 @@ describe GridCertificates::GetCertificate do
     context 'dns-01' do
       it 'fails validation in domain challenge' do
         authz
-        expect(subject).to receive(:validate_dns_record).and_return(false)
+        expect(subject).to receive(:check_dns_record).and_return(false)
         subject.validate
         expect(subject.has_errors?).to be_truthy
       end
 
       it 'validates domain challenge' do
         authz
-        expect(subject).to receive(:validate_dns_record).and_return(true)
+        expect(subject).to receive(:check_dns_record).and_return(true)
         outcome = subject.validate
         expect(subject.has_errors?).to be_truthy
       end
@@ -152,12 +152,12 @@ describe GridCertificates::GetCertificate do
   end
 
 
-  describe '#validate_dns_record' do
+  describe '#check_dns_record' do
     it 'returns false when wrong content in DNS record' do
       resolv = double
       allow(Resolv::DNS).to receive(:new).and_return(resolv)
       expect(resolv).to receive(:getresource).with("_acme-challenge.example.com", Resolv::DNS::Resource::IN::TXT).and_return(double(strings: ['dsdsdsdsds']))
-      expect(subject.validate_dns_record('example.com', '1234567890')).to be_falsey
+      expect(subject.check_dns_record('example.com', '1234567890')).to be_falsey
 
     end
 
@@ -165,7 +165,7 @@ describe GridCertificates::GetCertificate do
       resolv = double
       allow(Resolv::DNS).to receive(:new).and_return(resolv)
       expect(resolv).to receive(:getresource).with("_acme-challenge.example.com", Resolv::DNS::Resource::IN::TXT).and_raise(Resolv::ResolvError)
-      expect(subject.validate_dns_record('example.com', '1234567890')).to be_falsey
+      expect(subject.check_dns_record('example.com', '1234567890')).to be_falsey
 
     end
 
@@ -173,7 +173,7 @@ describe GridCertificates::GetCertificate do
       resolv = double
       allow(Resolv::DNS).to receive(:new).and_return(resolv)
       expect(resolv).to receive(:getresource).with("_acme-challenge.example.com", Resolv::DNS::Resource::IN::TXT).and_return(double(strings: ['1234567890']))
-      expect(subject.validate_dns_record('example.com', '1234567890')).to be_truthy
+      expect(subject.check_dns_record('example.com', '1234567890')).to be_truthy
 
     end
   end

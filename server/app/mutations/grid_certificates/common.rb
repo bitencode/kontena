@@ -39,10 +39,6 @@ module GridCertificates
       domain.sub('.', '_')
     end
 
-    def get_authz_for_domain(grid, domain)
-      grid.grid_domain_authorizations.find_by(domain: domain)
-    end
-
     def acme_endpoint
       ENV['ACME_ENDPOINT'] || ACME_ENDPOINT
     end
@@ -55,7 +51,16 @@ module GridCertificates
       stack.grid_services.find_by(name: service)
     end
 
-    def validate_dns_record(domain, expected_record)
+    # @param grid [Grid]
+    # @param domain [String]
+    # @return [GridDomainAuthorization, nil]
+    def get_authz_for_domain(grid, domain)
+      grid.grid_domain_authorizations.find_by(domain: domain)
+    end
+
+    # @param domain [String]
+    # @param expected_record [String] TXT record content
+    def check_dns_record(domain, expected_record)
       resolv = Resolv::DNS.new()
       info "validating domain:_acme-challenge.#{domain}"
       resource = resolv.getresource("_acme-challenge.#{domain}", Resolv::DNS::Resource::IN::TXT)
@@ -63,6 +68,29 @@ module GridCertificates
       expected_record == resource.strings[0]
     rescue
       false
+    end
+
+    # @param domain_authorization [GridDomainAuthorization]
+    def validate_domain_authorization(authz)
+      case authz.authorization_type
+      when 'dns-01'
+        # Check that the expected DNS record is already in place
+        unless check_dns_record(authz.domain, authz.challenge_opts['record_content'])
+          add_error(:dns_record, :invalid, "Expected DNS record not present for domain #{authz.domain}") # XXX: validations error type
+        end
+      end
+    end
+
+    # @param domains [Array<String>]
+    def validate_authorizations_for_domains(domains)
+      domains.each do |domain|
+        unless domain_authorization = get_authz_for_domain(self.grid, domain)
+          add_error(:authorization, :not_found, "Domain authorization not found for domain #{domain}") # XXX: validations error type
+          return # No point to continue validations
+        end
+
+        validate_domain_authorization(domain_authorization)
+      end
     end
   end
 end
