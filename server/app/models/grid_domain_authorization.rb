@@ -7,7 +7,7 @@ class GridDomainAuthorization
 
   belongs_to :grid
 
-  enum :state, [:created, :requested, :validated, :error], default: :created
+  enum :state, [:created, :requested, :validated, :rejected, :error], default: :created
 
   field :domain, type: String
   field :challenge, type: Hash

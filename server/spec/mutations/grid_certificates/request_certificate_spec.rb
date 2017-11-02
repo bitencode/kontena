@@ -85,7 +85,12 @@ describe GridCertificates::RequestCertificate do
       expect(challenge).to receive(:error).and_return({'detail' => "Testing"})
       expect(subject).to receive(:add_error).with(:challenge, :invalid, "Testing")
 
-      subject.verify_domain(grid, acme_client, 'example.com')
+      expect{
+        subject.verify_domain(grid, acme_client, 'example.com')
+      }.to change{authz.reload.state}.from(:created).to(:rejected)
+
+      expect(authz.expires).to be nil
+      expect(authz.status).to eq :rejected
     end
 
     it 'adds error if verification timeouts' do
